@@ -1,0 +1,74 @@
+#we are creating a service, headless service and statefulset
+#normal service i.e cluster IP service
+apiVersion: v1
+kind: Service
+metadata: 
+   name: mongodb-service  # service name
+
+spec:
+  selector:
+      project: roboshop
+      component: mongodb
+      tier: db
+  ports:
+     - protocol: TCP
+       port: 27017 # sevice port
+       targetPort: 27017 # container port   forwart req to another container
+
+---
+# this service for headless service
+apiVersion: v1
+kind: Service
+metadata: 
+   name: mongodb-headless-service  # service name
+spec:
+  clusterIP: None   # this makes headless service
+  selector:
+      project: roboshop
+      component: mongodb
+      tier: db
+  ports:
+     - protocol: TCP
+       port: 27017 # sevice port
+       targetPort: 27017 # container port   forwart req to another container       
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-statefulset
+  namespace: roboshop
+spec:
+  serviceName: "mongodb-headless-service"    # here we need to give headless service name
+  replicas: 2
+  selector:
+    matchLabels:
+      project: roboshop
+      component: mongodb
+      tier: db
+
+  template:
+    metadata:
+      labels:
+        project: roboshop
+        component: mongodb
+        tier: db
+    spec:
+      containers:
+      - name: mongodb
+        image: kanakavignesh/mongodb:v1
+        
+        volumeMounts:
+        - name: mongodb-claim-vol #volume claimed name
+          mountPath: /data/db
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-claim-vol #volume claim name
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "roboshop-ebs"
+      resources:
+        requests:
+          storage: 1Gi       
+
+    # above we doing creating volumes with PVC claim name and sending volume name to voume mount see www      
