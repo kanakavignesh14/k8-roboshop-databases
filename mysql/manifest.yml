@@ -1,0 +1,93 @@
+#we are creating a service, headless service and statefulset
+#normal service i.e cluster IP service
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql
+  namespace: roboshop
+data:
+  my.cnf: |
+    [mysqld]
+    innodb_redo_log_capacity = 2G
+---
+
+apiVersion: v1
+kind: Service
+metadata: 
+   name: mysql-service  # service name
+
+spec:
+  selector:
+      project: roboshop
+      component: mysql
+      tier: db
+  ports:
+     - protocol: TCP
+       port: 3306 # sevice port
+       targetPort: 3306 # container port   forwart req to another container
+
+---
+# this service for headless service
+apiVersion: v1
+kind: Service
+metadata: 
+   name: mysql-headless-service  # service name
+spec:
+  clusterIP: None   # this makes headless service
+  selector:
+      project: roboshop
+      component: mysql
+      tier: db
+  ports:
+     - protocol: TCP
+       port: 3306 # sevice port
+       targetPort: 3306 # container port   forwart req to another container       
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-statefulset
+  namespace: roboshop
+spec:
+  serviceName: "mysql-headless-service"    # here we need to give headless service name
+  replicas: 2
+  selector:
+    matchLabels:
+      project: roboshop
+      component: mysql
+      tier: db
+
+  template:
+    metadata:
+      labels:
+        project: roboshop
+        component: mysql
+        tier: db
+    spec:
+      containers:
+      - name: mysql
+        image: kanakavignesh/mysql:v1
+        volumeMounts:
+        - name: mysql-claim-vol #volume claimed name
+          mountPath: /data/db
+        - name: mysql-config
+          mountPath: /etc/mysql/conf.d/my.cnf
+          subPath: my.cnf
+
+      volumes:
+        - name: mysql-config
+          configMap:
+            name: mysql    
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-claim-vol #volume claim name
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "roboshop-ebs"
+      resources:
+        requests:
+          storage: 1Gi       
+
+    # above we doing creating volumes with PVC claim name and sending volume name to voume mount see www      
